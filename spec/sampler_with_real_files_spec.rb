@@ -37,6 +37,29 @@ describe Sampler do
       end
     end
     
+    describe 'creation' do
+      let(:file_name) { File.expand_path("../fixtures/unknown_encoding.txt", __FILE__) }
+
+      context 'with :sample_all option' do
+
+        it 'continues processing file even after two encodings are no longer undifferentiated' do
+          sampler = Sampler.new(file_name, %w(WINDOWS-1252 MacRoman), {}, { sample_all: true })
+          sampler.instance_variable_get(:@binary_samples).size.should > 1
+        end
+
+      end
+
+      context 'without :sample_all option' do
+
+        it 'stops appending binary lines after two encodings are no longer undifferentiated' do
+          sampler = Sampler.new(file_name, %w(WINDOWS-1252 MacRoman), {})
+          sampler.instance_variable_get(:@binary_samples).size.should == 1
+        end
+
+      end
+
+    end
+    
   end
   
 end

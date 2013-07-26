@@ -76,7 +76,7 @@ module EncodingSampler
 
   private
 
-    def initialize(file_name, encodings, diff_options = {})
+    def initialize(file_name, encodings, diff_options = {}, sampler_options = {})
       @diff_options = diff_options
       @filename = file_name.freeze
       @unique_valid_encoding_groups, @binary_samples, solutions = [], {}, {}
@@ -97,8 +97,11 @@ module EncodingSampler
             @binary_samples.keep_if {|id, string| solutions.keys.flatten.include? id}
           end
 
+          select_solutions = solutions
           # add sample to solutions when binary string decodes differently for any two previously-undifferentiated encodings
-          solutions.select {|pair, lineno| lineno.nil?}.keys.each do |unsolved_pair|
+          # when :sample_all option is present, add sample solutions even for previously differentiated encodings
+          select_solutions = solutions.select {|pair, lineno| lineno.nil?} unless sampler_options[:sample_all]
+          select_solutions.keys.each do |unsolved_pair|
             solutions[unsolved_pair], @binary_samples[file.lineno] = file.lineno, binary_line if decoded_lines[unsolved_pair[0]] != decoded_lines[unsolved_pair[1]]
           end
         end
