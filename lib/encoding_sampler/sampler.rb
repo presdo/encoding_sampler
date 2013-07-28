@@ -145,10 +145,11 @@ module EncodingSampler
       decoded_samples = samples(encodings)
       @diffed_encoded_samples = encodings.inject({}) {|hash, key| hash.merge! key => []}
 
-      @binary_samples.values.each_index do |i|
+      @binary_samples.each_with_index do |key_value, i|
+        line_number = key_value[0]
         decoded_lines = encodings.map {|encoding| decoded_samples[encoding][i]}
         diffed_encoded_lines = diffed_strings(decoded_lines)
-        encodings.each_index {|j| @diffed_encoded_samples[encodings[j]] << diffed_encoded_lines[j] }
+        encodings.each_index {|j| @diffed_encoded_samples[encodings[j]] << [line_number, diffed_encoded_lines[j]] }
       end
 
       @diffed_encoded_samples.freeze
