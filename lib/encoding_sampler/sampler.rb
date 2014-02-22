@@ -84,25 +84,43 @@ module EncodingSampler
       solutions = {}
       encodings.sort.combination(2).to_a.each {|pair| solutions[pair] = nil}
 
+      block = Proc.new do |binary_line, line_number|
+        decoded_lines = multi_decode_binary_string(binary_line, encodings)
+
+        # eliminate any newly-invalid encodings from the scope
+        decoded_lines.select {|encoding, decoded_line| decoded_line.nil?}.keys.each do |invalid_encoding|
+          encodings.delete invalid_encoding
+          solutions.delete_if {|pair, lineno| pair.include? invalid_encoding}
+          @binary_samples.keep_if {|id, string| solutions.keys.flatten.include? id}
+        end
+
+        select_solutions = solutions
+        # add sample to solutions when binary string decodes differently for any two previously-undifferentiated encodings
+        # when :sample_all option is present, add sample solutions even for previously differentiated encodings
+        select_solutions = solutions.select {|pair, lineno| lineno.nil?} unless sampler_options[:sample_all]
+        select_solutions.keys.each do |unsolved_pair|
+          solutions[unsolved_pair], @binary_samples[line_number] = line_number, binary_line if decoded_lines[unsolved_pair[0]] != decoded_lines[unsolved_pair[1]]
+        end
+      end
+
+      is_csv = true
+      CSV.foreach(@filename, { encoding: "ascii-8bit", headers: true, skip_blanks: true }) do |row|
+        begin
+        rescue CSV::MalformedCSVError
+          is_csv = false
+        end
+      end
       # read the entire file to verify encodings and collect samples for comparison of encodings
-      File.open(@filename, 'rb') do |file|
-        until file.eof?
-          binary_line = file.readline.strip
-          decoded_lines = multi_decode_binary_string(binary_line, encodings)
-
-          # eliminate any newly-invalid encodings from the scope
-          decoded_lines.select {|encoding, decoded_line| decoded_line.nil?}.keys.each do |invalid_encoding|
-            encodings.delete invalid_encoding
-            solutions.delete_if {|pair, lineno| pair.include? invalid_encoding}
-            @binary_samples.keep_if {|id, string| solutions.keys.flatten.include? id}
-          end
-
-          select_solutions = solutions
-          # add sample to solutions when binary string decodes differently for any two previously-undifferentiated encodings
-          # when :sample_all option is present, add sample solutions even for previously differentiated encodings
-          select_solutions = solutions.select {|pair, lineno| lineno.nil?} unless sampler_options[:sample_all]
-          select_solutions.keys.each do |unsolved_pair|
-            solutions[unsolved_pair], @binary_samples[file.lineno] = file.lineno, binary_line if decoded_lines[unsolved_pair[0]] != decoded_lines[unsolved_pair[1]]
+      if is_csv
+        line_number = 1
+        CSV.foreach(@filename, { encoding: "ascii-8bit", headers: true, return_headers: true, skip_blanks: true }) do |row|
+          block.call(row.to_csv, line_number)
+          line_number += 1
+        end
+      else
+        File.open(@filename, "rb") do |file|
+          until file.eof?
+            block.call(file.readline.strip, file.lineno)
           end
         end
       end
